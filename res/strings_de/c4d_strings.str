@@ -1,0 +1,17 @@
+/////////////////////////////////////////////////////////////
+// TrainDriver :: Global Stringtable
+/////////////////////////////////////////////////////////////
+
+STRINGTABLE
+{
+	IDS_TRAINDRIVERMAIN					"TrainDriver";
+	IDS_TRAINDRIVERCAR					"Waggon";
+	TRAIN_INFO_CARCOUNT					"# Elemente im Zug";
+	TRAIN_INFO_TRACKLENGTH			"Gleisl\u00E4nge: # Einheiten";
+	TRAIN_INFO_ERROR_CAR				"Fehler: Ung\u00FCltiger Aufbau von Element # (#)!";
+	TRAIN_INFO_ERROR_PATHLENGTH	"Fehler: Gleisl\u00E4nge betr\u00E4gt 0.0!";
+	TRAIN_INFO_ERROR_NOCARS			"Fehler: Keine Waggons gefunden!";
+	TRAIN_OP_CAR								"Waggon";
+	TRAIN_OP_MAIN								"Chassis";
+	TRAIN_OP_WHEEL							"R\u00E4der";
+}
