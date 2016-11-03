@@ -1,50 +1,30 @@
 #include "c4d.h"
-#include <string.h>
+#include "main.h"
 
-// forward declarations
-Bool RegisterTrainDriverMain(void);
-Bool RegisterTrainDriverCar(void);
 
-// Declare Crash handler
-C4D_CrashHandler old_handler;
-
-void SDKCrashHandler(CHAR *crashinfo)
+Bool PluginStart()
 {
-	// don't forget to call the original handler!!!
-	if (old_handler) (*old_handler)(crashinfo);
-}
-
-Bool PluginStart(void)
-{
-	// Installing the crash handler
-	old_handler = C4DOS.CrashHandler; // backup the original handler (must be called!)
-	C4DOS.CrashHandler = SDKCrashHandler; // insert the own handler
-	
 	// Register plugins
-	if (!RegisterTrainDriverMain()) goto ErrorHandler;
-	if (!RegisterTrainDriverCar()) goto ErrorHandler;
+	if (!RegisterTrainDriverMain()) return false;
+	if (!RegisterTrainDriverCar()) return false;
 
-	return TRUE;
-
-ErrorHandler:
-	return FALSE;
+	return true;
 }
 
-void PluginEnd(void)
+void PluginEnd()
 {
-	// Called when plugin is terminated
 }
 
-Bool PluginMessage(LONG id, void *data)
+Bool PluginMessage(Int32 id, void *data)
 {
 	// React to messages
 	switch (id)
 	{
 		case C4DPL_INIT_SYS:
 			// Don't start plugin without resources
-			if (!resource.Init()) return FALSE;
-			return TRUE;
+			if (!resource.Init()) return false;
+			return true;
 	}
 
-	return TRUE;
+	return true;
 }

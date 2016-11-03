@@ -1,57 +1,48 @@
-// Unique Plugin IDs obtained from www.plugincafe.com
-#define ID_TRAINDRIVERMAIN	1023458
-#define ID_TRAINDRIVERCAR		1023459
-
-
-///////////////////////////////////////////////////////////////////////////
-// Includes
-///////////////////////////////////////////////////////////////////////////
-
-// Include some stuff from the API
 #include "c4d.h"
 #include "c4d_symbols.h"
 #include "tTrainDriverMain.h"
 #include "tTrainDriverCar.h"
 #include "customgui_priority.h"
 #include "lib_splinehelp.h"
+#include "main.h"
+#include "pluginids.h"
 
 
-///////////////////////////////////////////////////////////////////////////
-// Plugin Class declaration
-///////////////////////////////////////////////////////////////////////////
 class TrainDriverMain : public TagData
 {
 	INSTANCEOF(TrainDriverMain, TagData)
 
-	private:
-		Bool AddCar(BaseContainer *bc, BaseObject *op);
+private:
+	Bool AddCar(BaseContainer *bc, BaseObject *op);
+	
+	AutoAlloc<SplineLengthData>	_sldPath;
+	AutoAlloc<SplineLengthData>	_sldRail;
 
-	public:
-		virtual Bool Init(GeListNode *node);
-		virtual Bool Message(GeListNode *node, LONG type, void *data);
-		virtual EXECUTIONRESULT Execute(BaseTag *tag, BaseDocument *doc, BaseObject *op, BaseThread *bt, LONG priority, EXECUTIONFLAGS flags);
+public:
+	virtual Bool Init(GeListNode *node);
+	virtual Bool Message(GeListNode *node, Int32 type, void *data);
+	virtual EXECUTIONRESULT Execute(BaseTag *tag, BaseDocument *doc, BaseObject *op, BaseThread *bt, Int32 priority, EXECUTIONFLAGS flags);
 
-		static NodeData *Alloc(void) { return gNew TrainDriverMain; }
+	static NodeData *Alloc(void) { return NewObjClear(TrainDriverMain); }
 };
 
 
-///////////////////////////////////////////////////////////////////////////
-// Helper functions
-///////////////////////////////////////////////////////////////////////////
 
-// Clamps a value between 0.0 and 1.0 with circular behavior
-static Real CircularValue(Real x, Bool Circular)
+// Clamps a value between 0.0 and 1.0 with optional circular behavior
+static Float CircularValue(Float x, Bool circular)
 {
-	if (Circular)
+	if (circular)
 	{
-		if(x > RCO 1.0)
+		if (x > 1.0)
 			return x - Floor(x);
-		else if(x < RCO 0.0)
+		else if (x < 0.0)
 			return x - Floor(x);
 	}
 	else
-		return Clamp(RCO 0.0, RCO 1.0, x);
-
+	{
+		return ClampValue(x, 0.0, 1.0);
+	}
+	
 	return x;
 }
 
@@ -64,54 +55,42 @@ static Matrix Target(const Vector &vPos, const Vector &vTargetPos, const Vector 
 	// Target
 	m.off = vPos;
 	m.v3 = !(vTargetPos - vPos);
-	m.v1 = !(m.v3 % (vPos - vUpVector));
-	m.v2 = !(m.v3 % m.v1);
+	m.v1 = !Cross(m.v3, (vPos - vUpVector));
+	m.v2 = !Cross(m.v3, m.v1);
 
 	// Return result
 	return m;
 }
-
-// Subdivide the spline
-static SplineObject	*SubDivideSpline(SplineObject *op, LONG lSubdivs)
-{
-	return NULL;
-}
-
-
-///////////////////////////////////////////////////////////////////////////
-// Public class member functions
-///////////////////////////////////////////////////////////////////////////
 
 // Set default values
 Bool TrainDriverMain::Init(GeListNode *node)
 {
 	// Get pointer to tag's Container
 	BaseTag				*tag	= (BaseTag*)node;
-	BaseContainer	*data	= tag->GetDataInstance();
+	BaseContainer	*bc	= tag->GetDataInstance();
 
 	// Set default values in user interface
-	data->SetReal(TRAIN_MAIN_LENGTH, RCO 30.0);
-	data->SetReal(TRAIN_MAIN_WHEELDISTANCE, RCO 25.0);
+	bc->SetFloat(TRAIN_MAIN_LENGTH, 30.0);
+	bc->SetFloat(TRAIN_MAIN_WHEELDISTANCE, 25.0);
 
-	// Set expression's priority bc
+	// Set expression's priority
 	GeData d(CUSTOMGUI_PRIORITY_DATA, DEFAULTVALUE);
 	if (node->GetParameter(DescLevel(EXPRESSION_PRIORITY), d, DESCFLAGS_GET_0))
 	{
 		PriorityData *pd = (PriorityData*)d.GetCustomDataType(CUSTOMGUI_PRIORITY_DATA);
-		if (pd) pd->SetPriorityValue(PRIORITYVALUE_CAMERADEPENDENT, GeData(TRUE));
+		if (pd) pd->SetPriorityValue(PRIORITYVALUE_CAMERADEPENDENT, GeData(true));
 		node->SetParameter(DescLevel(EXPRESSION_PRIORITY), d, DESCFLAGS_SET_0);
 	}
 
-	return TRUE;
+	return true;
 }
 
-
 // Recieve and handle messages
-Bool TrainDriverMain::Message(GeListNode *node, LONG type, void *data)
+Bool TrainDriverMain::Message(GeListNode *node, Int32 type, void *data)
 {
-	BaseTag *tag = (BaseTag*)node; if(!tag) return TRUE;
-	BaseObject *op = tag->GetObject(); if (!op) return TRUE;
-	BaseContainer *bc = tag->GetDataInstance(); if (!bc) return TRUE;
+	BaseTag *tag = (BaseTag*)node; if(!tag) return true;
+	BaseObject *op = tag->GetObject(); if (!op) return true;
+	BaseContainer *bc = tag->GetDataInstance(); if (!bc) return true;
 
 	switch (type)
 	{
@@ -128,42 +107,47 @@ Bool TrainDriverMain::Message(GeListNode *node, LONG type, void *data)
 		}
 	}
 
-	return TRUE;
+	return true;
 }
 
-
 // Work on the train
-EXECUTIONRESULT TrainDriverMain::Execute(BaseTag *tag, BaseDocument *doc, BaseObject *op, BaseThread *bt, LONG priority, EXECUTIONFLAGS flags)
+EXECUTIONRESULT TrainDriverMain::Execute(BaseTag *tag, BaseDocument *doc, BaseObject *op, BaseThread *bt, Int32 priority, EXECUTIONFLAGS flags)
 {
+	if (!tag || !doc || !op || !_sldPath || !_sldRail)
+		return EXECUTIONRESULT_OUTOFMEMORY;
+	
 	// Get Container from Tag
 	BaseContainer *bc = tag->GetDataInstance();
+	if (!bc)
+		return EXECUTIONRESULT_OUTOFMEMORY;
 
 	// Get settings from user interface
 	SplineObject	*opPathSpline	= (SplineObject*)bc->GetObjectLink(TRAIN_MAIN_PATHSPLINE, doc);
 	SplineObject	*opRailSpline	= (SplineObject*)bc->GetObjectLink(TRAIN_MAIN_RAILSPLINE, doc);
-	Real					rOffset				= bc->GetReal(TRAIN_MAIN_POSITION);
+	Float					rOffset				= bc->GetFloat(TRAIN_MAIN_POSITION);
 	Bool					bCircular			= bc->GetBool(TRAIN_MAIN_CIRCULAR);
 
 	// Cancel if no Path Spline is given
-	if (!opPathSpline) return EXECUTIONRESULT_OUTOFMEMORY;
+	if (!opPathSpline)
+		return EXECUTIONRESULT_USERBREAK;
 
 	// Variables
-	Real				rPathLength(DC);
+	Float				rPathLength(DC);
 
-	Real				rRelCarWheelDist(DC);
-	Real				rRelCarLength(DC);
+	Float				rRelCarWheelDist(DC);
+	Float				rRelCarLength(DC);
 
-	Real				rMainOff(DC);
-	Real				rWheel1Off(DC);
-	Real				rWheel2Off(DC);
+	Float				rMainOff(DC);
+	Float				rWheel1Off(DC);
+	Float				rWheel2Off(DC);
 
 	Vector			vMainTangent(DC);
 	Vector			vWheel1Tangent(DC);
 	Vector			vWheel2Tangent(DC);
 
-	BaseObject	*opMain		= NULL;
-	BaseObject	*opWheel1	= NULL;
-	BaseObject	*opWheel2	= NULL;
+	BaseObject	*opMain		= nullptr;
+	BaseObject	*opWheel1	= nullptr;
+	BaseObject	*opWheel2	= nullptr;
 
 	Vector			vMainPos(DC);
 	Vector			vWheel1Pos(DC);
@@ -182,18 +166,15 @@ EXECUTIONRESULT TrainDriverMain::Execute(BaseTag *tag, BaseDocument *doc, BaseOb
 	Matrix			mWheel1Mtx(DC);
 	Matrix			mWheel2Mtx(DC);
 
-	BaseContainer	*bcCarData		= NULL;
-	BaseObject		*opCar				= NULL;
-	BaseTag				*btCarTag			= NULL;
+	BaseContainer	*bcCarData		= nullptr;
+	BaseObject		*opCar				= nullptr;
+	BaseTag				*btCarTag			= nullptr;
 
-	LONG				lCarCount				= 0;
-	Real				rCurrentOffset	= rOffset;	// Used to add up the offset as the cars get chained
+	Int32				lCarCount				= 0;
+	Float				rCurrentOffset	= rOffset;	// Used to add up the offset as the cars get chained
 
-	Real				rCarWheelDist(DC);
-	Real				rCarLength(DC);
-
-	SplineLengthData *sld_path = NULL;
-	SplineLengthData *sld_rail = NULL;
+	Float				rCarWheelDist(DC);
+	Float				rCarLength(DC);
 
 	// Get real splines
 	if (opPathSpline->GetRealSpline())
@@ -202,27 +183,28 @@ EXECUTIONRESULT TrainDriverMain::Execute(BaseTag *tag, BaseDocument *doc, BaseOb
 	if (opRailSpline->GetRealSpline())
 		opRailSpline = opRailSpline->GetRealSpline();
 
-	// Create SplineHelp
-	sld_path = SplineLengthData::Alloc();
-	if (!sld_path) return EXECUTIONRESULT_OUTOFMEMORY;
-	if (!sld_path->Init(opPathSpline, 0, opPathSpline->GetPointR())) return EXECUTIONRESULT_OUTOFMEMORY;
-	rPathLength = sld_path->GetLength();
+	// Init SplineLengthDatas
+
+	if (!_sldPath->Init(opPathSpline, 0, opPathSpline->GetPointR()))
+		return EXECUTIONRESULT_OUTOFMEMORY;
+	rPathLength = _sldPath->GetLength();
 
 	if (opRailSpline)
 	{
-		sld_rail = SplineLengthData::Alloc();
-		if (!sld_rail) return EXECUTIONRESULT_OUTOFMEMORY;
-		if (!sld_rail->Init(opRailSpline, 0, opRailSpline->GetPointR())) return EXECUTIONRESULT_OUTOFMEMORY;
+		if (!_sldRail->Init(opRailSpline, 0, opRailSpline->GetPointR()))
+			return EXECUTIONRESULT_OUTOFMEMORY;
 	}
 
 	// Cancel if path length == 0
-	if (rPathLength == RCO 0.0) goto Error_PathLength;
+	if (rPathLength == 0.0)
+		goto Error_PathLength;
 
 	// Get first car
 	opCar = op->GetDown();
 
 	// Cancel if there's no car
-	if (!opCar) goto Error_NoCars;
+	if (!opCar)
+		goto Error_NoCars;
 
 	// Iterate cars
 	while (opCar)
@@ -237,14 +219,14 @@ EXECUTIONRESULT TrainDriverMain::Execute(BaseTag *tag, BaseDocument *doc, BaseOb
 		if (btCarTag)
 		{
 			bcCarData			= btCarTag->GetDataInstance();
-			rCarWheelDist	= bcCarData->GetReal(TRAIN_CAR_WHEELDISTANCE);
-			rCarLength			= bcCarData->GetReal(TRAIN_CAR_LENGTH);
+			rCarWheelDist	= bcCarData->GetFloat(TRAIN_CAR_WHEELDISTANCE);
+			rCarLength			= bcCarData->GetFloat(TRAIN_CAR_LENGTH);
 			btCarTag->SetName(opCar->GetName());
 		}
 		else
 		{
-			rCarWheelDist = bc->GetReal(TRAIN_MAIN_WHEELDISTANCE);
-			rCarLength    = bc->GetReal(TRAIN_MAIN_LENGTH);
+			rCarWheelDist = bc->GetFloat(TRAIN_MAIN_WHEELDISTANCE);
+			rCarLength    = bc->GetFloat(TRAIN_MAIN_LENGTH);
 		}
 
 		// Convert Wheel Distance and opCar Length to percent values
@@ -254,17 +236,20 @@ EXECUTIONRESULT TrainDriverMain::Execute(BaseTag *tag, BaseDocument *doc, BaseOb
 		// Calculate relative offsets for opCar's main part and wheels
 		rMainOff		= CircularValue(rCurrentOffset, bCircular);
 		rWheel1Off	= rMainOff;
-		rWheel2Off	= CircularValue(rWheel1Off - rRelCarWheelDist, TRUE);
+		rWheel2Off	= CircularValue(rWheel1Off - rRelCarWheelDist, true);
 
 		// Get car's parts
 		opMain		= opCar->GetDown(); if (!opMain) goto Error_Car;
 		opWheel1	= opMain->GetNext(); if (!opWheel1) goto Error_Car;
 		opWheel2	= opWheel1->GetNext(); if (!opWheel2) goto Error_Car;
+		
+		// Get path spline matrix
+		Matrix pathSplineMg(opPathSpline->GetMg());
 
 		// Get tangents
-		vMainTangent = opPathSpline->GetSplineTangent(sld_path->UniformToNatural(rMainOff)) ^ opPathSpline->GetMg();
-		vWheel1Tangent = opPathSpline->GetSplineTangent(sld_path->UniformToNatural(rWheel1Off)) ^ opPathSpline->GetMg();
-		vWheel2Tangent = opPathSpline->GetSplineTangent(sld_path->UniformToNatural(rWheel2Off)) ^ opPathSpline->GetMg();
+		vMainTangent = pathSplineMg.TransformVector(opPathSpline->GetSplineTangent(_sldPath->UniformToNatural(rMainOff)));
+		vWheel1Tangent = pathSplineMg.TransformVector(opPathSpline->GetSplineTangent(_sldPath->UniformToNatural(rWheel1Off)));
+		vWheel2Tangent = pathSplineMg.TransformVector(opPathSpline->GetSplineTangent(_sldPath->UniformToNatural(rWheel2Off)));
 
 		// Position the car's parts
 		opMain = opCar->GetDown(); if (!opMain) return EXECUTIONRESULT_OK;
@@ -272,23 +257,26 @@ EXECUTIONRESULT TrainDriverMain::Execute(BaseTag *tag, BaseDocument *doc, BaseOb
 		opWheel2 = opWheel1->GetNext(); if (!opWheel2) return EXECUTIONRESULT_OK;
 
 		// Get positions
-		vMainPos = opPathSpline->GetSplinePoint(sld_path->UniformToNatural(rMainOff)) * opPathSpline->GetMg();
+		vMainPos = pathSplineMg * opPathSpline->GetSplinePoint(_sldPath->UniformToNatural(rMainOff));
 		vWheel1Pos = vMainPos;
-		vWheel2Pos = opPathSpline->GetSplinePoint(sld_path->UniformToNatural(rWheel2Off)) * opPathSpline->GetMg(); // wheel2Pos will get a value later
+		vWheel2Pos = pathSplineMg * opPathSpline->GetSplinePoint(_sldPath->UniformToNatural(rWheel2Off)); // wheel2Pos will get a value later
 
 		if (opRailSpline)
 		{
+			// Get rail spline matrix
+			Matrix railSplineMg(opRailSpline->GetMg());
+			
 			// Get UpVectors from Rail Spline
-			vMainUp = opRailSpline->GetSplinePoint(sld_rail->UniformToNatural(rMainOff)) * opRailSpline->GetMg();
-			vWheel1Up = opRailSpline->GetSplinePoint(sld_rail->UniformToNatural(rWheel1Off)) * opRailSpline->GetMg();
-			vWheel2Up = opRailSpline->GetSplinePoint(sld_rail->UniformToNatural(rWheel2Off)) * opRailSpline->GetMg();
+			vMainUp = railSplineMg * opRailSpline->GetSplinePoint(_sldRail->UniformToNatural(rMainOff));
+			vWheel1Up = railSplineMg * opRailSpline->GetSplinePoint(_sldRail->UniformToNatural(rWheel1Off));
+			vWheel2Up = railSplineMg * opRailSpline->GetSplinePoint(_sldRail->UniformToNatural(rWheel2Off));
 		}
 		else
 		{
 			// If no Rail Spline is used, assume default UpVectors (+Y)
-			vMainUp = vMainPos + Vector(RCO 0.0, RCO 1.0, RCO 0.0);
-			vWheel1Up = vWheel1Pos + Vector(RCO 0.0, RCO 1.0, RCO 0.0);
-			vWheel2Up = vWheel2Pos + Vector(RCO 0.0, RCO 1.0, RCO 0.0);
+			vMainUp = vMainPos + Vector(0.0, 1.0, 0.0);
+			vWheel1Up = vWheel1Pos + Vector(0.0, 1.0, 0.0);
+			vWheel2Up = vWheel2Pos + Vector(0.0, 1.0, 0.0);
 		}
 
 		// Get Car's parts' scales
@@ -326,13 +314,9 @@ EXECUTIONRESULT TrainDriverMain::Execute(BaseTag *tag, BaseDocument *doc, BaseOb
 		opCar = opCar->GetNext();
 	}
 
-	// Free spline length(s)
-	SplineLengthData::Free(sld_path);
-	SplineLengthData::Free(sld_rail);
-
 	// Write info into User Interface
-	bc->SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(TRAIN_INFO_CARCOUNT, LongToString(lCarCount)));
-	bc->SetString(TRAIN_MAIN_TRACKLENGTH, GeLoadString(TRAIN_INFO_TRACKLENGTH, RealToString(rPathLength, 0, 3, FALSE, 0)));
+	bc->SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(TRAIN_INFO_CARCOUNT, String::IntToString(lCarCount)));
+	bc->SetString(TRAIN_MAIN_TRACKLENGTH, GeLoadString(TRAIN_INFO_TRACKLENGTH, String::FloatToString(rPathLength, 0, 3, false, 0)));
 	bc->SetString(TRAIN_MAIN_ERROR, String());
 
 	// Execution done
@@ -345,27 +329,27 @@ EXECUTIONRESULT TrainDriverMain::Execute(BaseTag *tag, BaseDocument *doc, BaseOb
 
 Error_Car:
 	// Execution failed because of invalid car group, write info into User Interface
-	bc->SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(TRAIN_INFO_CARCOUNT, LongToString(lCarCount)));
-	bc->SetString(TRAIN_MAIN_TRACKLENGTH, GeLoadString(TRAIN_INFO_TRACKLENGTH, RealToString(rPathLength, 0, 3, FALSE, 0)));
-	bc->SetString(TRAIN_MAIN_ERROR,  GeLoadString(TRAIN_INFO_ERROR_CAR, LongToString(lCarCount), opCar->GetName()));
+	bc->SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(TRAIN_INFO_CARCOUNT, String::IntToString(lCarCount)));
+	bc->SetString(TRAIN_MAIN_TRACKLENGTH, GeLoadString(TRAIN_INFO_TRACKLENGTH, String::FloatToString(rPathLength, 0, 3, false, 0)));
+	bc->SetString(TRAIN_MAIN_ERROR,  GeLoadString(TRAIN_INFO_ERROR_CAR, String::IntToString(lCarCount), opCar->GetName()));
 
-	return EXECUTIONRESULT_OUTOFMEMORY;
+	return EXECUTIONRESULT_USERBREAK;
 
 Error_PathLength:
 	// Execution failed because of invalid car group, write info into User Interface
-	bc->SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(TRAIN_INFO_CARCOUNT, LongToString(lCarCount)));
-	bc->SetString(TRAIN_MAIN_TRACKLENGTH, GeLoadString(TRAIN_INFO_TRACKLENGTH, RealToString(rPathLength, 0, 3, FALSE, 0)));
+	bc->SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(TRAIN_INFO_CARCOUNT, String::IntToString(lCarCount)));
+	bc->SetString(TRAIN_MAIN_TRACKLENGTH, GeLoadString(TRAIN_INFO_TRACKLENGTH, String::FloatToString(rPathLength, 0, 3, false, 0)));
 	bc->SetString(TRAIN_MAIN_ERROR,  GeLoadString(TRAIN_INFO_ERROR_PATHLENGTH));
 
-	return EXECUTIONRESULT_OUTOFMEMORY;
+	return EXECUTIONRESULT_USERBREAK;
 
 Error_NoCars:
 	// Execution failed because of invalid car group, write info into User Interface
-	bc->SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(TRAIN_INFO_CARCOUNT, LongToString(0)));
-	bc->SetString(TRAIN_MAIN_TRACKLENGTH, GeLoadString(TRAIN_INFO_TRACKLENGTH, RealToString(rPathLength, 0, 3, FALSE, 0)));
+	bc->SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(TRAIN_INFO_CARCOUNT, String::IntToString(0)));
+	bc->SetString(TRAIN_MAIN_TRACKLENGTH, GeLoadString(TRAIN_INFO_TRACKLENGTH, String::FloatToString(rPathLength, 0, 3, false, 0)));
 	bc->SetString(TRAIN_MAIN_ERROR,  GeLoadString(TRAIN_INFO_ERROR_NOCARS));
 
-	return EXECUTIONRESULT_OUTOFMEMORY;
+	return EXECUTIONRESULT_USERBREAK;
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -375,60 +359,71 @@ Error_NoCars:
 // Add a car as last element to the train group
 Bool TrainDriverMain::AddCar(BaseContainer *bc, BaseObject *op)
 {
-	if (!bc || !op) return FALSE;
+	if (!bc || !op) return false;
 
-	// Create new Null objects
-	BaseObject *car = BaseObject::Alloc(Onull); if (!car) return FALSE;
-	BaseObject *main = BaseObject::Alloc(Onull); if (!main) return FALSE;
-	BaseObject *wheel1 = BaseObject::Alloc(Onull); if (!wheel1) return FALSE;
-	BaseObject *wheel2 = BaseObject::Alloc(Onull); if (!wheel2) return FALSE;
+	// Create new nullptr objects
+	BaseObject *newCar = BaseObject::Alloc(Onull);
+	if (!newCar)
+		return false;
+	
+	BaseObject *carPartMain = BaseObject::Alloc(Onull);
+	if (!carPartMain)
+		return false;
+	
+	BaseObject *carPartWheel1 = BaseObject::Alloc(Onull);
+	if (!carPartWheel1)
+		return false;
+	
+	BaseObject *carPartWheel2 = BaseObject::Alloc(Onull);
+	if (!carPartWheel2)
+		return false;
 
 	// Count existing elements
-	LONG lCount = 0;
-	BaseObject *ccar = op->GetDown();
-	while (ccar)
+	Int32 carCount = 0;
+	BaseObject *nextCar = op->GetDown();
+	while (nextCar)
 	{
-		lCount++;
-		ccar = ccar->GetNext();
+		carCount++;
+		nextCar = nextCar->GetNext();
 	}
 
 	// Name objects
-	car->SetName(GeLoadString(TRAIN_OP_CAR) + " " + LongToString(lCount + 1));
-	main->SetName(GeLoadString(TRAIN_OP_MAIN));
-	wheel1->SetName(GeLoadString(TRAIN_OP_WHEEL) + " 1");
-	wheel2->SetName(GeLoadString(TRAIN_OP_WHEEL) + " 2");
+	newCar->SetName(GeLoadString(TRAIN_OP_CAR) + " " + String::IntToString(carCount + 1));
+	carPartMain->SetName(GeLoadString(TRAIN_OP_MAIN));
+	carPartWheel1->SetName(GeLoadString(TRAIN_OP_WHEEL) + " 1");
+	carPartWheel2->SetName(GeLoadString(TRAIN_OP_WHEEL) + " 2");
 
 	// Create new Car tag
-	BaseTag	*tag = BaseTag::Alloc(ID_TRAINDRIVERCAR); if (!tag) return FALSE;
+	BaseTag	*newCarTag = BaseTag::Alloc(ID_TRAINDRIVERCAR);
+	if (!newCarTag)
+		return false;
 
 	// Set car attributes (copy default values from main tag)
-	BaseContainer *tagbc = tag->GetDataInstance(); if (!tagbc) return FALSE;
-	tagbc->SetReal(TRAIN_CAR_LENGTH, bc->GetReal(TRAIN_MAIN_LENGTH, RCO 30.0));
-	tagbc->SetReal(TRAIN_CAR_WHEELDISTANCE, bc->GetReal(TRAIN_MAIN_WHEELDISTANCE, RCO 25.0));
+	BaseContainer *tagBc = newCarTag->GetDataInstance(); if (!tagBc) return false;
+	tagBc->SetFloat(TRAIN_CAR_LENGTH, bc->GetFloat(TRAIN_MAIN_LENGTH, 30.0));
+	tagBc->SetFloat(TRAIN_CAR_WHEELDISTANCE, bc->GetFloat(TRAIN_MAIN_WHEELDISTANCE, 25.0));
 
 	// Build car hierarchy
-	main->InsertUnderLast(car);
-	wheel1->InsertUnderLast(car);
-	wheel2->InsertUnderLast(car);
+	carPartMain->InsertUnderLast(newCar);
+	carPartWheel1->InsertUnderLast(newCar);
+	carPartWheel2->InsertUnderLast(newCar);
 
 	// Attach Car tag to group
-	car->InsertTag(tag);
+	newCar->InsertTag(newCarTag);
 
 	// Insert group under op
-	car->InsertUnderLast(op);
+	newCar->InsertUnderLast(op);
 
 	// Update train
 	op->Message(MSG_UPDATE);
 
-	return TRUE;
+	return true;
 }
 
-///////////////////////////////////////////////////////////////////////////
-// Register function
-///////////////////////////////////////////////////////////////////////////
-Bool RegisterTrainDriverMain(void)
+
+Bool RegisterTrainDriverMain()
 {
 	// decide by name if the plugin shall be registered - just for user convenience
-	String name=GeLoadString(IDS_TRAINDRIVERMAIN); if (!name.Content()) return TRUE;
+	String name = GeLoadString(IDS_TRAINDRIVERMAIN); if (!name.Content()) return true;
 	return RegisterTagPlugin(ID_TRAINDRIVERMAIN, name, TAG_EXPRESSION|TAG_VISIBLE, TrainDriverMain::Alloc, "tTrainDriverMain", AutoBitmap("TrainDriverMain.tif"), 0);
 }
