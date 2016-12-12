@@ -1,12 +1,16 @@
-
+# OSX files
 *.xcworkspacedata
-
 *.xcuserstate
-
 *.xcsettings
-
+*.xcbkptlist
 *.xcscheme
-
 *.plist
+*.dylib
 
-TrainDriver.dylib
+# Windows files
+*.exp
+*.cdl64
+*.opensdf
+*.sdf
+*.tlog
+*.lastbuildstate
