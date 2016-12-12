@@ -2,7 +2,7 @@
 #include "main.h"
 
 
-#define PLUGIN_VERSION	String("1.2");
+#define PLUGIN_VERSION	String("1.2")
 
 Bool PluginStart()
 {
