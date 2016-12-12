@@ -2,9 +2,11 @@
 #include "main.h"
 
 
+#define PLUGIN_VERSION	String("1.2");
+
 Bool PluginStart()
 {
-	// Register plugins
+	GePrint("TrainDriver " + PLUGIN_VERSION);
 	if (!RegisterTrainDriverMain()) return false;
 	if (!RegisterTrainDriverCar()) return false;
 
