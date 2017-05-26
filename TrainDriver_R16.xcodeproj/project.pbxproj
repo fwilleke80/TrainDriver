@@ -169,7 +169,7 @@
 			isa = PBXProject;
 			attributes = {
 				LastUpgradeCheck = 0610;
-				ORGANIZATIONNAME = "MAXON Computer GmbH";
+				ORGANIZATIONNAME = "";
 			};
 			buildConfigurationList = A0A668333900000000410000 /* Build configuration list for PBXProject "TrainDriver_R16" */;
 			compatibilityVersion = "Xcode 3.2";
@@ -238,7 +238,7 @@
 			baseConfigurationReference = A0A668333900000000000000 /* debugbase.xcconfig */;
 			buildSettings = {
 				MAXON_ROOTDIR = ../../;
-				USER_HEADER_SEARCH_PATHS = "./source ./res ./res/description $(MAXON_ROOTDIR)frameworks/cinema.framework/source/** $(inherited)";
+				USER_HEADER_SEARCH_PATHS = "./source ./source/tag ./res ./res/description $(MAXON_ROOTDIR)frameworks/cinema.framework/source/** $(inherited)";
 			};
 			name = Debug;
 		};
@@ -247,7 +247,7 @@
 			baseConfigurationReference = A0A668333900000000050000 /* releasebase.xcconfig */;
 			buildSettings = {
 				MAXON_ROOTDIR = ../../;
-				USER_HEADER_SEARCH_PATHS = "./source ./res ./res/description $(MAXON_ROOTDIR)frameworks/cinema.framework/source/** $(inherited)";
+				USER_HEADER_SEARCH_PATHS = "./source ./source/tag ./res ./res/description $(MAXON_ROOTDIR)frameworks/cinema.framework/source/** $(inherited)";
 			};
 			name = Release;
 		};
