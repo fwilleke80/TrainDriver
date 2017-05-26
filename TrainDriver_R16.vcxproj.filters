@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="source">
+      <UniqueIdentifier>{21895B69-DE91-7035-0000-0000CA90681B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\tag">
+      <UniqueIdentifier>{d671a0c3-8ab0-4446-b2d6-cf40a551c410}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="source\main.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\tag\tTrainDriverCar.cpp">
+      <Filter>source\tag</Filter>
+    </ClCompile>
+    <ClCompile Include="source\tag\tTrainDriverMain.cpp">
+      <Filter>source\tag</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="source\main.h">
+      <Filter>source</Filter>
+    </ClInclude>
+    <ClInclude Include="source\tag\pluginids.h">
+      <Filter>source\tag</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
