@@ -191,6 +191,7 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 		// Something went wrong; write info into TrainDriver main tag UI
 		trainDataRef.SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(IDS_TRAIN_INFO_CARCOUNT, "0"_s));
 		trainDataRef.SetString(TRAIN_MAIN_ERROR, GeLoadString(IDS_TRAIN_INFO_ERROR_NOCARS));
+		return EXECUTIONRESULT::USERBREAK;
 	}
 
 	if (railSpline)
@@ -208,6 +209,7 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 		// Something went wrong; write info into TrainDriver main tag UI
 		trainDataRef.SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(IDS_TRAIN_INFO_CARCOUNT, "0"_s));
 		trainDataRef.SetString(TRAIN_MAIN_ERROR, GeLoadString(IDS_TRAIN_INFO_ERROR_NOCARS));
+		return EXECUTIONRESULT::USERBREAK;
 	}
 
 	// Iterate cars
@@ -271,7 +273,7 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 			// Something went wrong; write info into TrainDriver main tag UI
 			trainDataRef.SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(IDS_TRAIN_INFO_CARCOUNT, maxon::String::IntToString(carCount)));
 			trainDataRef.SetString(TRAIN_MAIN_ERROR, GeLoadString(IDS_TRAIN_INFO_ERROR_CAR));
-
+			break;
 		}
 		BaseObject* carWheel1ObjectPtr = carMainObjectPtr->GetNext();
 		if (!carWheel1ObjectPtr)
@@ -279,6 +281,7 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 			// Something went wrong; write info into TrainDriver main tag UI
 			trainDataRef.SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(IDS_TRAIN_INFO_CARCOUNT, maxon::String::IntToString(carCount)));
 			trainDataRef.SetString(TRAIN_MAIN_ERROR, GeLoadString(IDS_TRAIN_INFO_ERROR_CAR));
+			break;
 
 		}
 		BaseObject* carWheel2ObjectPtr = carWheel1ObjectPtr->GetNext();
@@ -287,6 +290,7 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 			// Something went wrong; write info into TrainDriver main tag UI
 			trainDataRef.SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(IDS_TRAIN_INFO_CARCOUNT, maxon::String::IntToString(carCount)));
 			trainDataRef.SetString(TRAIN_MAIN_ERROR, GeLoadString(IDS_TRAIN_INFO_ERROR_CAR));
+			break;
 		}
 
 		//////////////////////////////////////////////////////
