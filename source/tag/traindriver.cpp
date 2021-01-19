@@ -299,9 +299,8 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 		const Matrix pathSplineMatrix(pathSpline->GetMg());
 
 		// Calculate tangents
-//		const Vector carMainTangent = pathSplineMatrix * pathSpline->GetSplineTangent(_pathSplineHelp->UniformToNatural(carOffset));
-		const Vector carWheel1Tangent = pathSplineMatrix * pathSpline->GetSplineTangent(_pathSplineHelp->UniformToNatural(wheelOffset1));
-		const Vector carWheel2Tangent = pathSplineMatrix * pathSpline->GetSplineTangent(_pathSplineHelp->UniformToNatural(wheelOffset2));
+		const Vector carWheel1Tangent = pathSplineMatrix.sqmat * pathSpline->GetSplineTangent(_pathSplineHelp->UniformToNatural(wheelOffset1));
+		const Vector carWheel2Tangent = pathSplineMatrix.sqmat * pathSpline->GetSplineTangent(_pathSplineHelp->UniformToNatural(wheelOffset2));
 
 		//////////////////////////////////////////////////////
 		//
