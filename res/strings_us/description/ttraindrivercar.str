@@ -1,6 +1,6 @@
 STRINGTABLE ttraindrivercar
 {
-	ttraindrivercar         "TrainDriver Carriage";
+	ttraindrivercar         "TrainDriver Carriage Tag";
 	
 	TRAIN_CAR_PROPERTIES    "Properties";
 	TRAIN_CAR_WHEELDISTANCE "Wheel Distance";
