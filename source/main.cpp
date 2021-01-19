@@ -1,15 +1,18 @@
-#include "c4d.h"
+#include "c4d_general.h"
+#include "c4d_resource.h"
+#include "c4d_plugin.h"
+
 #include "main.h"
 
 
-#define PLUGIN_VERSION	String("1.2")
-
 Bool PluginStart()
 {
-	GePrint("TrainDriver " + PLUGIN_VERSION);
-	if (!RegisterTrainDriverMain()) return false;
-	if (!RegisterTrainDriverCar()) return false;
-
+	GePrint("TrainDriver 1.2.1"_s);
+	if (!RegisterTrainDriverTag())
+		return false;
+	if (!RegisterTrainDriverCarTag())
+		return false;
+	
 	return true;
 }
 
@@ -24,9 +27,10 @@ Bool PluginMessage(Int32 id, void *data)
 	{
 		case C4DPL_INIT_SYS:
 			// Don't start plugin without resources
-			if (!resource.Init()) return false;
+			if (!g_resource.Init())
+				return false;
 			return true;
 	}
-
+	
 	return true;
 }

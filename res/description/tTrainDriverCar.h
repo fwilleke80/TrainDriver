@@ -1,9 +1,5 @@
-/////////////////////////////////////////////////////////////
-// TrainDriver :: Carriage Tag Header File
-/////////////////////////////////////////////////////////////
-
-#ifndef _tTrainDriverCar_H_
-#define _tTrainDriverCar_H_
+#ifndef TTRAINDRIVERCAR_H__
+#define TTRAINDRIVERCAR_H__
 
 enum
 {
@@ -12,4 +8,4 @@ enum
 	TRAIN_CAR_LENGTH					= 10002
 };
 
-#endif
+#endif // TTRAINDRIVERCAR_H__

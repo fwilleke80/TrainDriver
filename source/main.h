@@ -1,10 +1,10 @@
-#ifndef __MAIN_H
-#define __MAIN_H
+#ifndef MAIN_H__
+#define MAIN_H__
 
-#include "c4d.h"
+#include "ge_prepass.h"
 
-// forward declarations
-Bool RegisterTrainDriverMain(void);
-Bool RegisterTrainDriverCar(void);
+// Forward declarations
+Bool RegisterTrainDriverTag();
+Bool RegisterTrainDriverCarTag();
 
-#endif /* __MAIN_H */
+#endif // MAIN_H__

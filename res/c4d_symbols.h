@@ -1,6 +1,5 @@
 enum
 {
-	// string table definitions
 	IDS_TRAINDRIVERMAIN	= 10000,
 	IDS_TRAINDRIVERCAR,
 	TRAIN_INFO_CARCOUNT,
@@ -12,6 +11,5 @@ enum
 	TRAIN_OP_MAIN,
 	TRAIN_OP_WHEEL,
 
-// End of symbol definition
-  _DUMMY_ELEMENT_
+	_DUMMY_ELEMENT_
 };
