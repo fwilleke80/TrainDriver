@@ -344,21 +344,15 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 
 		//////////////////////////////////////////////////////
 		//
-		// Memorize objects' scales
+		// Calculate aligned component matrices
 		//
 		//////////////////////////////////////////////////////
 
-		// Get car component scales
+		// Memorize car components' scales (they will be reset to unit scale by the Target() function)
 		const Vector carScale(carObjectPtr->GetRelScale());
 		const Vector carMainScale(carMainObjectPtr->GetRelScale());
 		const Vector carWheel1Scale(carWheel1ObjectPtr->GetRelScale());
 		const Vector carWheel2Scale(carWheel2ObjectPtr->GetRelScale());
-
-		//////////////////////////////////////////////////////
-		//
-		// Calculate aligned component matrices
-		//
-		//////////////////////////////////////////////////////
 
 		// Align car component matrices
 		Matrix carWheel1Matrix = Target(carWheel1Position, carWheel1Position + carWheel1Tangent, carWheel1UpVector); // Align wheel 1 to spline tangentially
