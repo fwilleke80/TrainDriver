@@ -90,7 +90,7 @@ MAXON_ATTRIBUTE_FORCE_INLINE Matrix Target(const Vector& pos, const Vector& targ
 	// Calculate matrix alignment
 	m.off = pos; // Position
 	m.sqmat.v3 = !(targetPos - pos); // Z axis points from pos to targetPos
-	m.sqmat.v1 = !Cross(m.sqmat.v3, (pos - upVector)); // X axis is perpendicular to Z axis and upVector
+	m.sqmat.v1 = !Cross(m.sqmat.v3, (pos - upVector)); // X axis is perpendicular to Z axis and up vector
 	m.sqmat.v2 = !Cross(m.sqmat.v3, m.sqmat.v1); // Y axis is perpendicular to Z axis and X axis
 
 	return m;
@@ -218,10 +218,15 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 		// Increase car counter
 		++carCount;
 
+		//////////////////////////////////////////////////////
+		//
+		// Get data of current car
+		//
+		//////////////////////////////////////////////////////
+
 		// Get car object's tag
 		BaseTag* carTag = carObjectPtr->GetTag(ID_TRAINDRIVERCAR);
 
-		// Get car data
 		Float carWheelDistance(0.0);
 		Float carLength(0.0);
 		if (carTag)
@@ -239,7 +244,13 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 			carLength = trainDataRef.GetFloat(TRAIN_MAIN_LENGTH);
 		}
 
-		// Convert Wheel distance and car length to relative values
+		//////////////////////////////////////////////////////
+		//
+		// Get values relative to spline length
+		//
+		//////////////////////////////////////////////////////
+
+		// Convert wheel distance and car length to relative values
 		const Float relativeCarWheelDistance = carWheelDistance / pathLength;
 		const Float relativeCarLength = carLength / pathLength;
 
@@ -248,7 +259,12 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 		const Float wheelOffset1 = carOffset;
 		const Float wheelOffset2 = CircularValue(wheelOffset1 - relativeCarWheelDistance, true);
 
-		// Get car's parts
+		//////////////////////////////////////////////////////
+		//
+		// Get car components
+		//
+		//////////////////////////////////////////////////////
+
 		BaseObject* carMainObjectPtr = carObjectPtr->GetDown();
 		if (!carMainObjectPtr)
 		{
@@ -273,6 +289,12 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 			trainDataRef.SetString(TRAIN_MAIN_ERROR, GeLoadString(IDS_TRAIN_INFO_ERROR_CAR));
 		}
 
+		//////////////////////////////////////////////////////
+		//
+		// Calculate spline tangents
+		//
+		//////////////////////////////////////////////////////
+
 		// Get path spline matrix
 		const Matrix pathSplineMatrix(pathSpline->GetMg());
 
@@ -281,10 +303,22 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 		const Vector carWheel1Tangent = pathSplineMatrix * pathSpline->GetSplineTangent(_pathSplineHelp->UniformToNatural(wheelOffset1));
 		const Vector carWheel2Tangent = pathSplineMatrix * pathSpline->GetSplineTangent(_pathSplineHelp->UniformToNatural(wheelOffset2));
 
+		//////////////////////////////////////////////////////
+		//
+		// Calculate car component positions
+		//
+		//////////////////////////////////////////////////////
+
 		// Calculate car component positions
 		const Vector carMainPosition(pathSplineMatrix * pathSpline->GetSplinePoint(_pathSplineHelp->UniformToNatural(carOffset)));
 		const Vector carWheel1Position(carMainPosition);
 		const Vector carWheel2Position(pathSplineMatrix * pathSpline->GetSplinePoint(_pathSplineHelp->UniformToNatural(wheelOffset2)));
+
+		//////////////////////////////////////////////////////
+		//
+		// Calculate up vectors
+		//
+		//////////////////////////////////////////////////////
 
 		// Calculate car component up vectors
 		Vector carMainUpVector;
@@ -308,11 +342,23 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 			carWheel2UpVector = carWheel2Position + default_UpVector;
 		}
 
+		//////////////////////////////////////////////////////
+		//
+		// Memorize objects' scales
+		//
+		//////////////////////////////////////////////////////
+
 		// Get car component scales
 		const Vector carScale(carObjectPtr->GetRelScale());
 		const Vector carMainScale(carMainObjectPtr->GetRelScale());
 		const Vector carWheel1Scale(carWheel1ObjectPtr->GetRelScale());
 		const Vector carWheel2Scale(carWheel2ObjectPtr->GetRelScale());
+
+		//////////////////////////////////////////////////////
+		//
+		// Calculate aligned component matrices
+		//
+		//////////////////////////////////////////////////////
 
 		// Align car component matrices
 		Matrix carWheel1Matrix = Target(carWheel1Position, carWheel1Position + carWheel1Tangent, carWheel1UpVector); // Align wheel 1 to spline tangentially
@@ -323,6 +369,12 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 		carMainMatrix.off = carMainPosition;
 		carWheel1Matrix.off = carWheel1Position;
 		carWheel2Matrix.off = carWheel2Position;
+
+		//////////////////////////////////////////////////////
+		//
+		// Set data to all car components
+		//
+		//////////////////////////////////////////////////////
 
 		// Pass matrices back to car components
 		carObjectPtr->SetMg(carMainMatrix);
@@ -335,6 +387,12 @@ EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObj
 		carMainObjectPtr->SetRelScale(carMainScale);
 		carWheel1ObjectPtr->SetRelScale(carWheel1Scale);
 		carWheel2ObjectPtr->SetRelScale(carWheel2Scale);
+
+		//////////////////////////////////////////////////////
+		//
+		// Finalize, get ready for next car
+		//
+		//////////////////////////////////////////////////////
 
 		// Remember relative offset for next car
 		currentOffset -= relativeCarLength;
