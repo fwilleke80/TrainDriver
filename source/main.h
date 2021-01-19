@@ -3,7 +3,7 @@
 
 #include "ge_prepass.h"
 
-// Forward declarations
+
 Bool RegisterTrainDriverTag();
 Bool RegisterTrainDriverCarTag();
 
