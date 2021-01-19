@@ -1,12 +1,16 @@
+#include "lib_description.h"
 #include "c4d_tagplugin.h"
 #include "c4d_tagdata.h"
+#include "c4d_basetag.h"
+#include "c4d_basebitmap.h"
 #include "c4d_general.h"
+#include "c4d_resource.h"
 #include "ge_prepass.h"
-
-#include "ttraindrivercar.h"
 
 #include "main.h"
 #include "pluginids.h"
+
+#include "ttraindrivercar.h"
 #include "c4d_symbols.h"
 
 
@@ -22,33 +26,20 @@ public:
 };
 
 
-// Set default values
 Bool TrainDriverCarTag::Init(GeListNode *node)
 {
-	// Get pointer to tag's Container
-	BaseTag				*tag  = (BaseTag*)node;
+	BaseTag* tag = static_cast<BaseTag*>(node);
 	if (!tag)
 		return false;
-	BaseContainer	*data = tag->GetDataInstance();
-	if (!data)
-		return false;
+	BaseContainer& dataRef = tag->GetDataInstanceRef();
 
-	// Set default values in user interface
-	data->SetFloat(TRAIN_CAR_LENGTH, 30.0);
-	data->SetFloat(TRAIN_CAR_WHEELDISTANCE, 25.0);
+	dataRef.SetFloat(TRAIN_CAR_LENGTH, 30.0);
+	dataRef.SetFloat(TRAIN_CAR_WHEELDISTANCE, 25.0);
 
 	return true;
 }
 
-///////////////////////////////////////////////////////////////////////////
-// Register function
-///////////////////////////////////////////////////////////////////////////
-Bool RegisterTrainDriverCar()
+Bool RegisterTrainDriverCarTag()
 {
-	// decide by name if the plugin shall be registered - just for user convenience
-	String name = GeLoadString(IDS_TRAINDRIVERCAR);
-	if (!name.Content())
-		return true;
-
-	return RegisterTagPlugin(ID_TRAINDRIVERCAR, name, TAG_VISIBLE, TrainDriverCar::Alloc, "ttraindrivercar", AutoBitmap("ttraindrivercar.tif"_s), 0);
+	return RegisterTagPlugin(ID_TRAINDRIVERCAR, GeLoadString(IDS_TRAINDRIVERCAR), TAG_VISIBLE, TrainDriverCarTag::Alloc, "ttraindrivercar"_s, AutoBitmap("ttraindrivercar.tif"_s), 0);
 }

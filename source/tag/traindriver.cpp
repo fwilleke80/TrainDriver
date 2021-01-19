@@ -1,44 +1,62 @@
+#include "lib_description.h"
 #include "lib_splinehelp.h"
 #include "customgui_priority.h"
 #include "c4d_tagplugin.h"
 #include "c4d_tagdata.h"
+#include "c4d_basetag.h"
+#include "c4d_basebitmap.h"
 #include "c4d_general.h"
+#include "c4d_resource.h"
 #include "ge_prepass.h"
-
-#include "ttraindriver.h"
-#include "ttraindrivercar.h"
 
 #include "main.h"
 #include "pluginids.h"
+
+#include "ttraindriver.h"
+#include "ttraindrivercar.h"
+#include "texpression.h"
 #include "c4d_symbols.h"
 
 
 class TrainDriverTag : public TagData
 {
 	INSTANCEOF(TrainDriverTag, TagData)
-	
-private:
-	Bool AddCar(BaseContainer *bc, BaseObject *op);
-	
-	AutoAlloc<SplineLengthData>	_sldPath;
-	AutoAlloc<SplineLengthData>	_sldRail;
-	
+
 public:
-	virtual Bool Init(GeListNode *node);
-	virtual Bool Message(GeListNode *node, Int32 type, void *data);
-	virtual EXECUTIONRESULT Execute(BaseTag *tag, BaseDocument *doc, BaseObject *op, BaseThread *bt, Int32 priority, EXECUTIONFLAGS flags);
-	
+	virtual Bool Init(GeListNode* node);
+	virtual Bool Message(GeListNode* node, Int32 type, void* data);
+	virtual EXECUTIONRESULT Execute(BaseTag* tag, BaseDocument* doc, BaseObject* op, BaseThread* bt, Int32 priority, EXECUTIONFLAGS flags);
+
 	static NodeData *Alloc()
 	{
 		return NewObjClear(TrainDriverTag);
-
 	}
+
+private:
+	///
+	/// \brief Apends a new carriage to the end of the train
+	///
+	/// \param[in] trainDriverTagPtr Pointer to the TrainDriver tag's container
+	///
+	/// return maxon::OK if successful, otherwise a maxon error object
+	///
+	maxon::Result<void> AddCar(BaseTag* trainDriverTagPtr);
+
+private:
+	AutoAlloc<SplineLengthData>	_pathSplineHelp;
+	AutoAlloc<SplineLengthData>	_railSplineHelp;
 };
 
 
-
-// Clamps a value between 0.0 and 1.0 with optional circular behavior
-static Float CircularValue(Float x, Bool circular)
+///
+/// \brief Clamps a value between 0.0 and 1.0 with optional circular behavior (like mod)
+///
+/// \param[in] x The input value
+/// \param[in] circular Set to true for circular behavior
+///
+/// \return The resulting value
+///
+MAXON_ATTRIBUTE_FORCE_INLINE Float CircularValue(Float x, Bool circular)
 {
 	if (circular)
 	{
@@ -51,388 +69,362 @@ static Float CircularValue(Float x, Bool circular)
 	{
 		return ClampValue(x, 0.0, 1.0);
 	}
-	
+
 	return x;
 }
 
-// Align a matrix to a target, using an up vector
-static Matrix Target(const Vector &vPos, const Vector &vTargetPos, const Vector &vUpVector)
+///
+/// \brief Aligns a matrix to a target, using an up vector
+///
+/// \param[in] pos The position from which to target
+/// \param[in] targetPos The target position
+/// \param[in] upVector Up vector
+///
+/// \return The aligned, normalized, orthogonal matrix
+///
+MAXON_ATTRIBUTE_FORCE_INLINE Matrix Target(const Vector& pos, const Vector& targetPos, const Vector& upVector)
 {
-	// Get Positions
-	Matrix m(DC);
-	
-	// Target
-	m.off = vPos;
-	m.v3 = !(vTargetPos - vPos);
-	m.v1 = !Cross(m.v3, (vPos - vUpVector));
-	m.v2 = !Cross(m.v3, m.v1);
-	
-	// Return result
+	// New matrix
+	Matrix m;
+
+	// Calculate matrix alignment
+	m.off = pos; // Position
+	m.sqmat.v3 = !(targetPos - pos); // Z axis points from pos to targetPos
+	m.sqmat.v1 = !Cross(m.sqmat.v3, (pos - upVector)); // X axis is perpendicular to Z axis and upVector
+	m.sqmat.v2 = !Cross(m.sqmat.v3, m.sqmat.v1); // Y axis is perpendicular to Z axis and X axis
+
 	return m;
 }
 
-// Set default values
-Bool TrainDriverMain::Init(GeListNode *node)
+
+Bool TrainDriverTag::Init(GeListNode* node)
 {
-	// Get pointer to tag's Container
-	BaseTag				*tag	= (BaseTag*)node;
-	BaseContainer	*bc	= tag->GetDataInstance();
-	
-	// Set default values in user interface
-	bc->SetFloat(TRAIN_MAIN_LENGTH, 30.0);
-	bc->SetFloat(TRAIN_MAIN_WHEELDISTANCE, 25.0);
-	
-	// Set expression's priority
+	// Get tag's container
+	BaseTag* tag = static_cast<BaseTag*>(node);
+	BaseContainer& dataRef = tag->GetDataInstanceRef();
+
+	// Set default values
+	dataRef.SetFloat(TRAIN_MAIN_LENGTH, 30.0);
+	dataRef.SetFloat(TRAIN_MAIN_WHEELDISTANCE, 25.0);
+
+	// Set expression priority
 	GeData d(CUSTOMGUI_PRIORITY_DATA, DEFAULTVALUE);
-	if (node->GetParameter(DescLevel(EXPRESSION_PRIORITY), d, DESCFLAGS_GET_0))
+	if (node->GetParameter(DescLevel(EXPRESSION_PRIORITY), d, DESCFLAGS_GET::NONE))
 	{
-		PriorityData *pd = (PriorityData*)d.GetCustomDataType(CUSTOMGUI_PRIORITY_DATA);
-		if (pd) pd->SetPriorityValue(PRIORITYVALUE_CAMERADEPENDENT, GeData(true));
-		node->SetParameter(DescLevel(EXPRESSION_PRIORITY), d, DESCFLAGS_SET_0);
+		PriorityData* pd = (PriorityData*)d.GetCustomDataType(CUSTOMGUI_PRIORITY_DATA);
+		if (pd)
+			pd->SetPriorityValue(PRIORITYVALUE_CAMERADEPENDENT, GeData(true));
+		node->SetParameter(DescLevel(EXPRESSION_PRIORITY), d, DESCFLAGS_SET::NONE);
 	}
-	
+
 	return true;
 }
 
-// Recieve and handle messages
-Bool TrainDriverMain::Message(GeListNode *node, Int32 type, void *data)
+Bool TrainDriverTag::Message(GeListNode* node, Int32 type, void* data)
 {
-	BaseTag *tag = (BaseTag*)node; if(!tag) return true;
-	BaseObject *op = tag->GetObject(); if (!op) return true;
-	BaseContainer *bc = tag->GetDataInstance(); if (!bc) return true;
-	
+	iferr_scope_handler
+	{
+		GePrint(err.GetMessage());
+		return false;
+	};
+
+	BaseTag* trainDriverTag = static_cast<BaseTag*>(node);
+	if (!trainDriverTag)
+		return true;
+
 	switch (type)
 	{
-			// A command button has been clicked
 		case MSG_DESCRIPTION_COMMAND:
 		{
-			DescriptionCommand *dc = (DescriptionCommand*)data;
-			switch (dc->id[0].id)
+			// A command button has been clicked. Check if we received the data.
+			if (!data)
+				iferr_throw(maxon::NullptrError(MAXON_SOURCE_LOCATION, "Received MSG_DESCRIPTION_COMMAND, but data is NULL!"_s));
+
+			DescriptionCommand* dc = (DescriptionCommand*)data;
+			if (dc->_descId[0].id == TRAIN_MAIN_CMD_ADDCAR)
 			{
-				case TRAIN_MAIN_CMD_ADDCAR:
-					AddCar(bc, op);
-					break;
+				AddCar(trainDriverTag) iferr_return;
 			}
+			break;
 		}
 	}
-	
+
 	return true;
 }
 
 // Work on the train
-EXECUTIONRESULT TrainDriverMain::Execute(BaseTag *tag, BaseDocument *doc, BaseObject *op, BaseThread *bt, Int32 priority, EXECUTIONFLAGS flags)
+EXECUTIONRESULT TrainDriverTag::Execute(BaseTag* tag, BaseDocument* doc, BaseObject* op, BaseThread* bt, Int32 priority, EXECUTIONFLAGS flags)
 {
-	if (!tag || !doc || !op || !_sldPath || !_sldRail)
-		return EXECUTIONRESULT_OUTOFMEMORY;
+	if (!tag || !doc || !op || !_pathSplineHelp || !_railSplineHelp)
+		return EXECUTIONRESULT::OUTOFMEMORY;
 	
-	// Get Container from Tag
-	BaseContainer *bc = tag->GetDataInstance();
-	if (!bc)
-		return EXECUTIONRESULT_OUTOFMEMORY;
-	
-	// Get settings from user interface
-	SplineObject	*opPathSpline	= (SplineObject*)bc->GetObjectLink(TRAIN_MAIN_PATHSPLINE, doc);
-	SplineObject	*opRailSpline	= (SplineObject*)bc->GetObjectLink(TRAIN_MAIN_RAILSPLINE, doc);
-	Float					rOffset				= bc->GetFloat(TRAIN_MAIN_POSITION);
-	Bool					bCircular			= bc->GetBool(TRAIN_MAIN_CIRCULAR);
-	
+	// Get container & parameters
+	BaseContainer& trainDataRef = tag->GetDataInstanceRef();
+	SplineObject* pathSpline	= static_cast<SplineObject*>(trainDataRef.GetObjectLink(TRAIN_MAIN_PATHSPLINE, doc));
+	SplineObject* railSpline	= static_cast<SplineObject*>(trainDataRef.GetObjectLink(TRAIN_MAIN_RAILSPLINE, doc));
+	const Float offset = trainDataRef.GetFloat(TRAIN_MAIN_POSITION);
+	const Bool circular = trainDataRef.GetBool(TRAIN_MAIN_CIRCULAR);
+
 	// Cancel if no Path Spline is given
-	if (!opPathSpline)
-		return EXECUTIONRESULT_USERBREAK;
-	
-	// Variables
-	Float				rPathLength(DC);
-	
-	Float				rRelCarWheelDist(DC);
-	Float				rRelCarLength(DC);
-	
-	Float				rMainOff(DC);
-	Float				rWheel1Off(DC);
-	Float				rWheel2Off(DC);
-	
-	Vector			vMainTangent(DC);
-	Vector			vWheel1Tangent(DC);
-	Vector			vWheel2Tangent(DC);
-	
-	BaseObject	*opMain		= nullptr;
-	BaseObject	*opWheel1	= nullptr;
-	BaseObject	*opWheel2	= nullptr;
-	
-	Vector			vMainPos(DC);
-	Vector			vWheel1Pos(DC);
-	Vector			vWheel2Pos(DC);
-	
-	Vector			vMainUp(DC);
-	Vector			vWheel1Up(DC);
-	Vector			vWheel2Up(DC);
-	
-	Vector			vMainScale(DC);
-	Vector			vCarScale(DC);
-	Vector			vWheel1Scale(DC);
-	Vector			vWheel2Scale(DC);
-	
-	Matrix			mMainMtx(DC);
-	Matrix			mWheel1Mtx(DC);
-	Matrix			mWheel2Mtx(DC);
-	
-	BaseContainer	*bcCarData		= nullptr;
-	BaseObject		*opCar				= nullptr;
-	BaseTag				*btCarTag			= nullptr;
-	
-	Int32				lCarCount				= 0;
-	Float				rCurrentOffset	= rOffset;	// Used to add up the offset as the cars get chained
-	
-	Float				rCarWheelDist(DC);
-	Float				rCarLength(DC);
-	
+	if (!pathSpline)
+		return EXECUTIONRESULT::USERBREAK;
+
+	// Default up vector, if user didn't define one
+	static const Vector default_UpVector(0.0, 1.0, 0.0);
+
 	// Get real splines
-	if (opPathSpline->GetRealSpline())
-		opPathSpline = opPathSpline->GetRealSpline();
-	
-	if (opRailSpline->GetRealSpline())
-		opRailSpline = opRailSpline->GetRealSpline();
-	
+	if (pathSpline->GetRealSpline())
+		pathSpline = pathSpline->GetRealSpline();
+
+	if (railSpline->GetRealSpline())
+		railSpline = railSpline->GetRealSpline();
+
 	// Init SplineLengthDatas
-	
-	if (!_sldPath->Init(opPathSpline, 0, opPathSpline->GetPointR()))
-		return EXECUTIONRESULT_OUTOFMEMORY;
-	rPathLength = _sldPath->GetLength();
-	
-	if (opRailSpline)
+	if (!_pathSplineHelp->Init(pathSpline, 0, pathSpline->GetPointR()))
+		return EXECUTIONRESULT::OUTOFMEMORY;
+	const Float pathLength = _pathSplineHelp->GetLength();
+	trainDataRef.SetString(TRAIN_MAIN_TRACKLENGTH, GeLoadString(IDS_TRAIN_INFO_TRACKLENGTH, maxon::String::FloatToString(pathLength, 0, 3)));
+
+	// Cancel if path length == 0.0
+	if (pathLength == 0.0)
 	{
-		if (!_sldRail->Init(opRailSpline, 0, opRailSpline->GetPointR()))
-			return EXECUTIONRESULT_OUTOFMEMORY;
+		// Something went wrong; write info into TrainDriver main tag UI
+		trainDataRef.SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(IDS_TRAIN_INFO_CARCOUNT, "0"_s));
+		trainDataRef.SetString(TRAIN_MAIN_ERROR, GeLoadString(IDS_TRAIN_INFO_ERROR_NOCARS));
 	}
-	
-	// Cancel if path length == 0
-	if (rPathLength == 0.0)
-		goto Error_PathLength;
-	
+
+	if (railSpline)
+	{
+		if (!_railSplineHelp->Init(railSpline, 0, railSpline->GetPointR()))
+			return EXECUTIONRESULT::OUTOFMEMORY;
+	}
+
 	// Get first car
-	opCar = op->GetDown();
-	
-	// Cancel if there's no car
-	if (!opCar)
-		goto Error_NoCars;
-	
+	BaseObject* carObjectPtr = op->GetDown();
+
+	// Cancel if no cars found
+	if (!carObjectPtr)
+	{
+		// Something went wrong; write info into TrainDriver main tag UI
+		trainDataRef.SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(IDS_TRAIN_INFO_CARCOUNT, "0"_s));
+		trainDataRef.SetString(TRAIN_MAIN_ERROR, GeLoadString(IDS_TRAIN_INFO_ERROR_NOCARS));
+	}
+
 	// Iterate cars
-	while (opCar)
+	Int32 carCount(0);
+	Float currentOffset(offset);
+	while (carObjectPtr)
 	{
 		// Increase car counter
-		lCarCount++;
-		
-		// Get opCar's Carriage tag
-		btCarTag = opCar->GetTag(ID_TRAINDRIVERCAR);
-		
-		// Get Car bc from tag. If no tag found, use default values (set in the TrainDriver Main Tag)
-		if (btCarTag)
+		++carCount;
+
+		// Get car object's tag
+		BaseTag* carTag = carObjectPtr->GetTag(ID_TRAINDRIVERCAR);
+
+		// Get car data
+		Float carWheelDistance(0.0);
+		Float carLength(0.0);
+		if (carTag)
 		{
-			bcCarData			= btCarTag->GetDataInstance();
-			rCarWheelDist	= bcCarData->GetFloat(TRAIN_CAR_WHEELDISTANCE);
-			rCarLength			= bcCarData->GetFloat(TRAIN_CAR_LENGTH);
-			btCarTag->SetName(opCar->GetName());
+			// Get container from tag
+			BaseContainer& carDataRef = carTag->GetDataInstanceRef();
+			carWheelDistance = carDataRef.GetFloat(TRAIN_CAR_WHEELDISTANCE);
+			carLength = carDataRef.GetFloat(TRAIN_CAR_LENGTH);
+			carTag->SetName(carObjectPtr->GetName());
 		}
 		else
 		{
-			rCarWheelDist = bc->GetFloat(TRAIN_MAIN_WHEELDISTANCE);
-			rCarLength    = bc->GetFloat(TRAIN_MAIN_LENGTH);
+			// If no tag found, use default values (set in the TrainDriver Main Tag)
+			carWheelDistance = trainDataRef.GetFloat(TRAIN_MAIN_WHEELDISTANCE);
+			carLength = trainDataRef.GetFloat(TRAIN_MAIN_LENGTH);
 		}
-		
-		// Convert Wheel Distance and opCar Length to percent values
-		rRelCarWheelDist = rCarWheelDist / rPathLength;
-		rRelCarLength = rCarLength / rPathLength;
-		
-		// Calculate relative offsets for opCar's main part and wheels
-		rMainOff		= CircularValue(rCurrentOffset, bCircular);
-		rWheel1Off	= rMainOff;
-		rWheel2Off	= CircularValue(rWheel1Off - rRelCarWheelDist, true);
-		
+
+		// Convert Wheel distance and car length to relative values
+		const Float relativeCarWheelDistance = carWheelDistance / pathLength;
+		const Float relativeCarLength = carLength / pathLength;
+
+		// Calculate relative offsets for car's main part and wheels
+		const Float carOffset = CircularValue(currentOffset, circular);
+		const Float wheelOffset1 = carOffset;
+		const Float wheelOffset2 = CircularValue(wheelOffset1 - relativeCarWheelDistance, true);
+
 		// Get car's parts
-		opMain		= opCar->GetDown(); if (!opMain) goto Error_Car;
-		opWheel1	= opMain->GetNext(); if (!opWheel1) goto Error_Car;
-		opWheel2	= opWheel1->GetNext(); if (!opWheel2) goto Error_Car;
-		
+		BaseObject* carMainObjectPtr = carObjectPtr->GetDown();
+		if (!carMainObjectPtr)
+		{
+			// Something went wrong; write info into TrainDriver main tag UI
+			trainDataRef.SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(IDS_TRAIN_INFO_CARCOUNT, maxon::String::IntToString(carCount)));
+			trainDataRef.SetString(TRAIN_MAIN_ERROR, GeLoadString(IDS_TRAIN_INFO_ERROR_CAR));
+
+		}
+		BaseObject* carWheel1ObjectPtr = carMainObjectPtr->GetNext();
+		if (!carWheel1ObjectPtr)
+		{
+			// Something went wrong; write info into TrainDriver main tag UI
+			trainDataRef.SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(IDS_TRAIN_INFO_CARCOUNT, maxon::String::IntToString(carCount)));
+			trainDataRef.SetString(TRAIN_MAIN_ERROR, GeLoadString(IDS_TRAIN_INFO_ERROR_CAR));
+
+		}
+		BaseObject* carWheel2ObjectPtr = carWheel1ObjectPtr->GetNext();
+		if (!carWheel2ObjectPtr)
+		{
+			// Something went wrong; write info into TrainDriver main tag UI
+			trainDataRef.SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(IDS_TRAIN_INFO_CARCOUNT, maxon::String::IntToString(carCount)));
+			trainDataRef.SetString(TRAIN_MAIN_ERROR, GeLoadString(IDS_TRAIN_INFO_ERROR_CAR));
+		}
+
 		// Get path spline matrix
-		Matrix pathSplineMg(opPathSpline->GetMg());
-		
-		// Get tangents
-		vMainTangent = pathSplineMg.TransformVector(opPathSpline->GetSplineTangent(_sldPath->UniformToNatural(rMainOff)));
-		vWheel1Tangent = pathSplineMg.TransformVector(opPathSpline->GetSplineTangent(_sldPath->UniformToNatural(rWheel1Off)));
-		vWheel2Tangent = pathSplineMg.TransformVector(opPathSpline->GetSplineTangent(_sldPath->UniformToNatural(rWheel2Off)));
-		
-		// Position the car's parts
-		opMain = opCar->GetDown(); if (!opMain) return EXECUTIONRESULT_OK;
-		opWheel1 = opMain->GetNext(); if (!opWheel1) return EXECUTIONRESULT_OK;
-		opWheel2 = opWheel1->GetNext(); if (!opWheel2) return EXECUTIONRESULT_OK;
-		
-		// Get positions
-		vMainPos = pathSplineMg * opPathSpline->GetSplinePoint(_sldPath->UniformToNatural(rMainOff));
-		vWheel1Pos = vMainPos;
-		vWheel2Pos = pathSplineMg * opPathSpline->GetSplinePoint(_sldPath->UniformToNatural(rWheel2Off)); // wheel2Pos will get a value later
-		
-		if (opRailSpline)
+		const Matrix pathSplineMatrix(pathSpline->GetMg());
+
+		// Calculate tangents
+//		const Vector carMainTangent = pathSplineMatrix * pathSpline->GetSplineTangent(_pathSplineHelp->UniformToNatural(carOffset));
+		const Vector carWheel1Tangent = pathSplineMatrix * pathSpline->GetSplineTangent(_pathSplineHelp->UniformToNatural(wheelOffset1));
+		const Vector carWheel2Tangent = pathSplineMatrix * pathSpline->GetSplineTangent(_pathSplineHelp->UniformToNatural(wheelOffset2));
+
+		// Calculate car component positions
+		const Vector carMainPosition(pathSplineMatrix * pathSpline->GetSplinePoint(_pathSplineHelp->UniformToNatural(carOffset)));
+		const Vector carWheel1Position(carMainPosition);
+		const Vector carWheel2Position(pathSplineMatrix * pathSpline->GetSplinePoint(_pathSplineHelp->UniformToNatural(wheelOffset2)));
+
+		// Calculate car component up vectors
+		Vector carMainUpVector;
+		Vector carWheel1UpVector;
+		Vector carWheel2UpVector;
+		if (railSpline)
 		{
 			// Get rail spline matrix
-			Matrix railSplineMg(opRailSpline->GetMg());
-			
-			// Get UpVectors from Rail Spline
-			vMainUp = railSplineMg * opRailSpline->GetSplinePoint(_sldRail->UniformToNatural(rMainOff));
-			vWheel1Up = railSplineMg * opRailSpline->GetSplinePoint(_sldRail->UniformToNatural(rWheel1Off));
-			vWheel2Up = railSplineMg * opRailSpline->GetSplinePoint(_sldRail->UniformToNatural(rWheel2Off));
+			const Matrix railSplineMatrix(railSpline->GetMg());
+
+			// Get up vectors from rail spline
+			carMainUpVector = railSplineMatrix * railSpline->GetSplinePoint(_railSplineHelp->UniformToNatural(carOffset));
+			carWheel1UpVector = railSplineMatrix * railSpline->GetSplinePoint(_railSplineHelp->UniformToNatural(wheelOffset1));
+			carWheel2UpVector = railSplineMatrix * railSpline->GetSplinePoint(_railSplineHelp->UniformToNatural(wheelOffset2));
 		}
 		else
 		{
-			// If no Rail Spline is used, assume default UpVectors (+Y)
-			vMainUp = vMainPos + Vector(0.0, 1.0, 0.0);
-			vWheel1Up = vWheel1Pos + Vector(0.0, 1.0, 0.0);
-			vWheel2Up = vWheel2Pos + Vector(0.0, 1.0, 0.0);
+			// If no rail spline is used, use default up vector
+			carMainUpVector = carMainPosition + default_UpVector;
+			carWheel1UpVector = carWheel1Position + default_UpVector;
+			carWheel2UpVector = carWheel2Position + default_UpVector;
 		}
-		
-		// Get Car's parts' scales
-		vCarScale = opCar->GetRelScale();
-		vMainScale = opMain->GetRelScale();
-		vWheel1Scale = opWheel1->GetRelScale();
-		vWheel2Scale = opWheel2->GetRelScale();
-		
-		// Align Matrices
-		mWheel1Mtx = Target(vWheel1Pos, vWheel1Pos + vWheel1Tangent, vWheel1Up);	// Align Wheel 1 to spline tangentially
-		mWheel2Mtx = Target(vWheel2Pos, vWheel2Pos + vWheel2Tangent, vWheel2Up);	// Align Wheel 2 to spline tangentially
-		mMainMtx = Target(vMainPos, vWheel2Pos, vMainUp);													// Target opMain part to Wheel 2
-		
-		// Positions
-		mMainMtx.off = vMainPos;
-		mWheel1Mtx.off = vWheel1Pos;
-		mWheel2Mtx.off = vWheel2Pos;
-		
-		// Pass matrices back to Car's parts
-		opCar->SetMg(mMainMtx);
-		opMain->SetMg(mMainMtx);
-		opWheel1->SetMg(mWheel1Mtx);
-		opWheel2->SetMg(mWheel2Mtx);
-		
+
+		// Get car component scales
+		const Vector carScale(carObjectPtr->GetRelScale());
+		const Vector carMainScale(carMainObjectPtr->GetRelScale());
+		const Vector carWheel1Scale(carWheel1ObjectPtr->GetRelScale());
+		const Vector carWheel2Scale(carWheel2ObjectPtr->GetRelScale());
+
+		// Align car component matrices
+		Matrix carWheel1Matrix = Target(carWheel1Position, carWheel1Position + carWheel1Tangent, carWheel1UpVector); // Align wheel 1 to spline tangentially
+		Matrix carWheel2Matrix = Target(carWheel2Position, carWheel2Position + carWheel2Tangent, carWheel2UpVector); // Align wheel 2 to spline tangentially
+		Matrix carMainMatrix = Target(carMainPosition, carWheel2Position, carMainUpVector); // Target main part to wheel 2
+
+		// Car component positions
+		carMainMatrix.off = carMainPosition;
+		carWheel1Matrix.off = carWheel1Position;
+		carWheel2Matrix.off = carWheel2Position;
+
+		// Pass matrices back to car components
+		carObjectPtr->SetMg(carMainMatrix);
+		carMainObjectPtr->SetMg(carMainMatrix);
+		carWheel1ObjectPtr->SetMg(carWheel1Matrix);
+		carWheel2ObjectPtr->SetMg(carWheel2Matrix);
+
 		// Set scales back to original values
-		opCar->SetRelScale(vCarScale);
-		opMain->SetRelScale(vMainScale);
-		opWheel1->SetRelScale(vWheel1Scale);
-		opWheel2->SetRelScale(vWheel2Scale);
-		
-		// Remember rOffset for next car
-		rCurrentOffset -= rRelCarLength;
-		
+		carObjectPtr->SetRelScale(carScale);
+		carMainObjectPtr->SetRelScale(carMainScale);
+		carWheel1ObjectPtr->SetRelScale(carWheel1Scale);
+		carWheel2ObjectPtr->SetRelScale(carWheel2Scale);
+
+		// Remember relative offset for next car
+		currentOffset -= relativeCarLength;
+
 		// Continue with next car
-		opCar = opCar->GetNext();
+		carObjectPtr = carObjectPtr->GetNext();
 	}
-	
-	// Write info into User Interface
-	bc->SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(TRAIN_INFO_CARCOUNT, String::IntToString(lCarCount)));
-	bc->SetString(TRAIN_MAIN_TRACKLENGTH, GeLoadString(TRAIN_INFO_TRACKLENGTH, String::FloatToString(rPathLength, 0, 3, false, 0)));
-	bc->SetString(TRAIN_MAIN_ERROR, String());
-	
+
+	// Write info into TrainDriver main tag UI
+	trainDataRef.SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(IDS_TRAIN_INFO_CARCOUNT, maxon::String::IntToString(carCount)));
+	trainDataRef.SetString(TRAIN_MAIN_ERROR, maxon::String());
+
 	// Execution done
-	return EXECUTIONRESULT_OK;
-	
-	
-	///////////////////////////////////////////////////////////////////////////
-	// Error handlers
-	///////////////////////////////////////////////////////////////////////////
-	
-Error_Car:
-	// Execution failed because of invalid car group, write info into User Interface
-	bc->SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(TRAIN_INFO_CARCOUNT, String::IntToString(lCarCount)));
-	bc->SetString(TRAIN_MAIN_TRACKLENGTH, GeLoadString(TRAIN_INFO_TRACKLENGTH, String::FloatToString(rPathLength, 0, 3, false, 0)));
-	bc->SetString(TRAIN_MAIN_ERROR,  GeLoadString(TRAIN_INFO_ERROR_CAR, String::IntToString(lCarCount), opCar->GetName()));
-	
-	return EXECUTIONRESULT_USERBREAK;
-	
-Error_PathLength:
-	// Execution failed because of invalid car group, write info into User Interface
-	bc->SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(TRAIN_INFO_CARCOUNT, String::IntToString(lCarCount)));
-	bc->SetString(TRAIN_MAIN_TRACKLENGTH, GeLoadString(TRAIN_INFO_TRACKLENGTH, String::FloatToString(rPathLength, 0, 3, false, 0)));
-	bc->SetString(TRAIN_MAIN_ERROR,  GeLoadString(TRAIN_INFO_ERROR_PATHLENGTH));
-	
-	return EXECUTIONRESULT_USERBREAK;
-	
-Error_NoCars:
-	// Execution failed because of invalid car group, write info into User Interface
-	bc->SetString(TRAIN_MAIN_CARCOUNT, GeLoadString(TRAIN_INFO_CARCOUNT, String::IntToString(0)));
-	bc->SetString(TRAIN_MAIN_TRACKLENGTH, GeLoadString(TRAIN_INFO_TRACKLENGTH, String::FloatToString(rPathLength, 0, 3, false, 0)));
-	bc->SetString(TRAIN_MAIN_ERROR,  GeLoadString(TRAIN_INFO_ERROR_NOCARS));
-	
-	return EXECUTIONRESULT_USERBREAK;
+	return EXECUTIONRESULT::OK;
 }
 
-///////////////////////////////////////////////////////////////////////////
-// Register function
-///////////////////////////////////////////////////////////////////////////
-
-// Add a car as last element to the train group
-Bool TrainDriverMain::AddCar(BaseContainer *bc, BaseObject *op)
+maxon::Result<void> TrainDriverTag::AddCar(BaseTag* trainDriverTagPtr)
 {
-	if (!bc || !op) return false;
-	
-	// Create new nullptr objects
+	if (!trainDriverTagPtr)
+		return maxon::NullptrError(MAXON_SOURCE_LOCATION, "trainDriverTagPtr must not be NULL!"_s);
+
+	// Get main train object (the object that holds the TrainDriver tag)
+	BaseObject *trainMainObjectPtr = trainDriverTagPtr->GetObject();
+	if (!trainMainObjectPtr)
+		return maxon::IllegalStateError(MAXON_SOURCE_LOCATION, "Could not get trainDriverTagPtr's object!"_s);
+
+	// Get TrainDriver tag's container
+	const BaseContainer& dataRef = trainDriverTagPtr->GetDataInstanceRef();
+
+	// Create new Null objects
 	BaseObject *newCar = BaseObject::Alloc(Onull);
 	if (!newCar)
-		return false;
-	
+		return maxon::OutOfMemoryError(MAXON_SOURCE_LOCATION, "Couldn't allocate new car object!"_s);
+
 	BaseObject *carPartMain = BaseObject::Alloc(Onull);
 	if (!carPartMain)
-		return false;
-	
+		return maxon::OutOfMemoryError(MAXON_SOURCE_LOCATION, "Couldn't allocate new car main component!"_s);
+
 	BaseObject *carPartWheel1 = BaseObject::Alloc(Onull);
 	if (!carPartWheel1)
-		return false;
-	
+		return maxon::OutOfMemoryError(MAXON_SOURCE_LOCATION, "Couldn't allocate new car wheel1 component!"_s);
+
 	BaseObject *carPartWheel2 = BaseObject::Alloc(Onull);
 	if (!carPartWheel2)
-		return false;
-	
+		return maxon::OutOfMemoryError(MAXON_SOURCE_LOCATION, "Couldn't allocate new car wheel2 component!"_s);
+
 	// Count existing elements
 	Int32 carCount = 0;
-	BaseObject *nextCar = op->GetDown();
+	BaseObject *nextCar = trainMainObjectPtr->GetDown();
 	while (nextCar)
 	{
-		carCount++;
+		++carCount;
 		nextCar = nextCar->GetNext();
 	}
-	
+
 	// Name objects
-	newCar->SetName(GeLoadString(TRAIN_OP_CAR) + " " + String::IntToString(carCount + 1));
-	carPartMain->SetName(GeLoadString(TRAIN_OP_MAIN));
-	carPartWheel1->SetName(GeLoadString(TRAIN_OP_WHEEL) + " 1");
-	carPartWheel2->SetName(GeLoadString(TRAIN_OP_WHEEL) + " 2");
-	
+	newCar->SetName(GeLoadString(IDS_TRAIN_OP_CAR) + " " + String::IntToString(carCount + 1));
+	carPartMain->SetName(GeLoadString(IDS_TRAIN_OP_MAIN));
+	carPartWheel1->SetName(GeLoadString(IDS_TRAIN_OP_WHEEL) + " 1");
+	carPartWheel2->SetName(GeLoadString(IDS_TRAIN_OP_WHEEL) + " 2");
+
 	// Create new Car tag
 	BaseTag	*newCarTag = BaseTag::Alloc(ID_TRAINDRIVERCAR);
 	if (!newCarTag)
-		return false;
-	
+		return maxon::OutOfMemoryError(MAXON_SOURCE_LOCATION, "Couldn't allocate new car tag!"_s);
+
 	// Set car attributes (copy default values from main tag)
-	BaseContainer *tagBc = newCarTag->GetDataInstance(); if (!tagBc) return false;
-	tagBc->SetFloat(TRAIN_CAR_LENGTH, bc->GetFloat(TRAIN_MAIN_LENGTH, 30.0));
-	tagBc->SetFloat(TRAIN_CAR_WHEELDISTANCE, bc->GetFloat(TRAIN_MAIN_WHEELDISTANCE, 25.0));
-	
+	BaseContainer& carDataRef = newCarTag->GetDataInstanceRef();
+	carDataRef.SetFloat(TRAIN_CAR_LENGTH, dataRef.GetFloat(TRAIN_MAIN_LENGTH, 30.0));
+	carDataRef.SetFloat(TRAIN_CAR_WHEELDISTANCE, dataRef.GetFloat(TRAIN_MAIN_WHEELDISTANCE, 25.0));
+
 	// Build car hierarchy
 	carPartMain->InsertUnderLast(newCar);
 	carPartWheel1->InsertUnderLast(newCar);
 	carPartWheel2->InsertUnderLast(newCar);
-	
-	// Attach Car tag to group
+
+	// Attach car tag to group
 	newCar->InsertTag(newCarTag);
-	
-	// Insert group under op
-	newCar->InsertUnderLast(op);
-	
-	// Update train
-	op->Message(MSG_UPDATE);
-	
-	return true;
+
+	// Insert group under trainMainObjectPtr
+	newCar->InsertUnderLast(trainMainObjectPtr);
+
+	// Update train main object
+	trainMainObjectPtr->Message(MSG_UPDATE);
+
+	return maxon::OK;
 }
 
 
-Bool RegisterTrainDriverMain()
+Bool RegisterTrainDriverTag()
 {
-	// decide by name if the plugin shall be registered - just for user convenience
-	String name = GeLoadString(IDS_TRAINDRIVERMAIN); if (!name.Content()) return true;
-	return RegisterTagPlugin(ID_TRAINDRIVERMAIN, name, TAG_EXPRESSION|TAG_VISIBLE, TrainDriverMain::Alloc, "tTrainDriverMain", AutoBitmap("TrainDriverMain.tif"), 0);
+	return RegisterTagPlugin(ID_TRAINDRIVERMAIN, GeLoadString(IDS_TRAINDRIVERMAIN), TAG_EXPRESSION|TAG_VISIBLE, TrainDriverTag::Alloc, "ttraindriver"_s, AutoBitmap("ttraindriver.tif"_s), 0);
 }
