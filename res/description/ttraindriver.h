@@ -1,9 +1,5 @@
-/////////////////////////////////////////////////////////////
-// TrainDriver :: Main Tag Header File
-/////////////////////////////////////////////////////////////
-
-#ifndef _tTrainDriverMain_H_
-#define _tTrainDriverMain_H_
+#ifndef TTRAINDRIVER_H__
+#define TTRAINDRIVER_H__
 
 enum
 {
@@ -25,4 +21,4 @@ enum
 	TRAIN_MAIN_SPLINESUB_VAL		= 20015
 };
 
-#endif
+#endif // TTRAINDRIVER_H__
