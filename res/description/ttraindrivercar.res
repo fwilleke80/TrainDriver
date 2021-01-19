@@ -2,9 +2,9 @@
 // TrainDriver :: Carriage Tag Description Resource
 /////////////////////////////////////////////////////////////
 
-CONTAINER tTrainDriverCar
+CONTAINER ttraindrivercar
 {
-	NAME tTrainDriverCar;
+	NAME ttraindrivercar;
 
 	GROUP TRAIN_CAR_PROPERTIES
 	{

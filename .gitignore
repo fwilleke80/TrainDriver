@@ -6,11 +6,19 @@
 *.xcscheme
 *.plist
 *.dylib
+*.xlib
+.DS_Store
 
 # Windows files
 *.exp
 *.cdl64
+*.cdl
+*.xdl
+*.xdl64
 *.opensdf
 *.sdf
 *.tlog
 *.lastbuildstate
+
+# Misc
+generated

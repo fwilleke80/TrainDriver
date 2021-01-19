@@ -2,9 +2,9 @@
 // TrainDriver :: Main Tag Description Resource
 /////////////////////////////////////////////////////////////
 
-CONTAINER tTrainDriverMain
+CONTAINER ttraindriver
 {
-	NAME tTrainDriverMain;
+	NAME ttraindriver;
 	INCLUDE Texpression;
 
 	GROUP TRAIN_MAIN_SETTINGS

@@ -4,14 +4,14 @@
 
 STRINGTABLE
 {
-	IDS_TRAINDRIVERMAIN					"TrainDriver";
-	IDS_TRAINDRIVERCAR					"Carriage";
-	TRAIN_INFO_CARCOUNT					"# Elements in Train";
-	TRAIN_INFO_TRACKLENGTH			"Track Length: # units";
-	TRAIN_INFO_ERROR_CAR				"Error: Invalid structure of element # (#)!";
-	TRAIN_INFO_ERROR_PATHLENGTH	"Error: Invalid track length of 0.0!";
-	TRAIN_INFO_ERROR_NOCARS			"Error: No carriages found!";
-	TRAIN_OP_CAR								"Carriage";
-	TRAIN_OP_MAIN								"Main";
-	TRAIN_OP_WHEEL							"Wheels";
+	IDS_TRAINDRIVERMAIN             "TrainDriver";
+	IDS_TRAINDRIVERCAR              "Carriage";
+	IDS_TRAIN_INFO_CARCOUNT         "# Elements in Train";
+	IDS_TRAIN_INFO_TRACKLENGTH      "Track Length: # units";
+	IDS_TRAIN_INFO_ERROR_CAR        "Error: Invalid structure of element # (#)!";
+	IDS_TRAIN_INFO_ERROR_PATHLENGTH "Error: Invalid track length of 0.0!";
+	IDS_TRAIN_INFO_ERROR_NOCARS     "Error: No carriages found!";
+	IDS_TRAIN_OP_CAR                "Carriage";
+	IDS_TRAIN_OP_MAIN               "Main";
+	IDS_TRAIN_OP_WHEEL              "Wheels";
 }

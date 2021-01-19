@@ -1,0 +1,18 @@
+STRINGTABLE ttraindriver
+{
+	ttraindriver                "TrainDriver Tag";
+	
+	TRAIN_MAIN_SETTINGS         "Train";
+	TRAIN_MAIN_PATHSPLINE       "Path Spline";
+	TRAIN_MAIN_RAILSPLINE       "Rail Spline";
+	TRAIN_MAIN_POSITION         "Position";
+	TRAIN_MAIN_CIRCULAR         "Circular";
+	TRAIN_MAIN_DEFAULTVALS      "Car Defaults";
+	TRAIN_MAIN_WHEELDISTANCE    "Wheel Distance";
+	TRAIN_MAIN_LENGTH           "Length";
+	TRAIN_MAIN_INFO             "Info";
+	TRAIN_MAIN_CMD_ADDCAR       "Add car";
+	TRAIN_MAIN_SPLINESUB        "Spline Subdivision";
+	TRAIN_MAIN_SPLINESUB_ENABLE "Enable";
+	TRAIN_MAIN_SPLINESUB_VAL    "Subdivisions";
+}

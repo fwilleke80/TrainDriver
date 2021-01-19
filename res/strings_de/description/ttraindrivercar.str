@@ -1,14 +1,8 @@
-/////////////////////////////////////////////////////////////
-// TrainDriver
-/////////////////////////////////////////////////////////////
-// TrainDriver :: Carriage Tag Stringtable
-/////////////////////////////////////////////////////////////
-
-STRINGTABLE tTrainDriverCar
+STRINGTABLE ttraindrivercar
 {
-	tTrainDriverCar				"TrainDriver Waggon";
+	ttraindrivercar         "TrainDriver Waggon Tag";
 	
-	TRAIN_CAR_PROPERTIES		"Eigenschaften";
-	TRAIN_CAR_WHEELDISTANCE		"Rad-Abstand";
-	TRAIN_CAR_LENGTH			"L\u00E4nge";
+	TRAIN_CAR_PROPERTIES    "Eigenschaften";
+	TRAIN_CAR_WHEELDISTANCE "Rad-Abstand";
+	TRAIN_CAR_LENGTH        "L\u00E4nge";
 }
